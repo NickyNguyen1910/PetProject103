@@ -1,13 +1,22 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User } from '@/types';
+
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  avatar?: string;
+  address?: string;
+  phone?: string;
+  createdAt: string;
+}
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => { success: boolean; message: string };
-  register: (name: string, email: string, password: string) => { success: boolean; message: string };
-  logout: () => void;
+  login: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
+  register: (name: string, email: string, password: string) => Promise<{ success: boolean; message: string }>;
+  logout: () => Promise<void>;
   updateUser: (data: Partial<User>) => void;
   isLoading: boolean;
 }
@@ -18,60 +27,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Khi app load → gọi /api/auth/me để check session
   useEffect(() => {
-    const stored = localStorage.getItem('currentUser');
-    if (stored) setUser(JSON.parse(stored));
-    setIsLoading(false);
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setUser(data.data.user);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
-  const getUsers = (): User[] => {
-    const stored = localStorage.getItem('users');
-    return stored ? JSON.parse(stored) : [];
+  const login = async (email: string, password: string) => {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (data.success) setUser(data.data.user);
+    return { success: data.success, message: data.message ?? 'Đăng nhập thành công!' };
   };
 
-  const saveUsers = (users: User[]) => {
-    localStorage.setItem('users', JSON.stringify(users));
+  const register = async (name: string, email: string, password: string) => {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password }),
+    });
+    const data = await res.json();
+    if (data.success) setUser(data.data.user);
+    return { success: data.success, message: data.message ?? 'Đăng ký thành công!' };
   };
 
-  const login = (email: string, password: string) => {
-    const users = getUsers();
-    const found = users.find(u => u.email === email && u.password === password);
-    if (!found) return { success: false, message: 'Email hoặc mật khẩu không đúng' };
-    setUser(found);
-    localStorage.setItem('currentUser', JSON.stringify(found));
-    return { success: true, message: 'Đăng nhập thành công!' };
-  };
-
-  const register = (name: string, email: string, password: string) => {
-    const users = getUsers();
-    if (users.find(u => u.email === email)) {
-      return { success: false, message: 'Email này đã được sử dụng' };
-    }
-    const newUser: User = {
-      id: Date.now().toString(),
-      email,
-      name,
-      password,
-      createdAt: new Date().toISOString(),
-    };
-    saveUsers([...users, newUser]);
-    setUser(newUser);
-    localStorage.setItem('currentUser', JSON.stringify(newUser));
-    return { success: true, message: 'Đăng ký thành công!' };
-  };
-
-  const logout = () => {
+  const logout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
     setUser(null);
-    localStorage.removeItem('currentUser');
   };
 
   const updateUser = (data: Partial<User>) => {
     if (!user) return;
-    const updated = { ...user, ...data };
-    setUser(updated);
-    localStorage.setItem('currentUser', JSON.stringify(updated));
-    const users = getUsers().map(u => u.id === user.id ? updated : u);
-    saveUsers(users);
+    setUser({ ...user, ...data });
   };
 
   return (

@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  avatar       String?
+  address      String?
+  phone        String?
+  createdAt    DateTime @default(now())
+
+  orders Order[]
+}
+
+enum CardType {
+  photocard
+  trading
+  limited
+  special
+}
+
+model Product {
+  id            String  @id @default(cuid())
+  name          String
+  group         String
+  image         String
+  price         Int
+  originalPrice Int?
+  rating        Float   @default(0)
+  reviews       Int     @default(0)
+  stock         Int     @default(0)
+  cardType      CardType
+  description   String
+  tags          String[]
+  isNew         Boolean @default(false)
+  isBestSeller  Boolean @default(false)
+
+  orderItems OrderItem[]
+}
+
+enum OrderStatus {
+  pending
+  confirmed
+  shipped
+  delivered
+}
+
+model Order {
+  id       String      @id @default(cuid())
+  userId   String
+  subtotal Int
+  shipping Int
+  total    Int
+  status   OrderStatus @default(pending)
+
+  shipFullName String
+  shipEmail    String
+  shipPhone    String
+  shipAddress  String
+  shipCity     String
+  shipNote     String?
+
+  createdAt DateTime @default(now())
+
+  user  User        @relation(fields: [userId], references: [id])
+  items OrderItem[]
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Int
+
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+}
